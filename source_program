@@ -1,0 +1,143 @@
+
+KEYWORDS	"if"|"then"|"else"|"while"|"do"|"skip"|"write"|"read"
+NL              \n|\n\r
+COMMENT         \/\/.*
+ML_COMMENT	\(\*[^*]*[^)]*\*\)
+OPERATIONS	"+"|"-"|"*"|"**"|"/"|"%"|"=="|"!="|":="|">"|">="|"<"|"<="|"&&"|"||"
+VARIABLE	([a-zA-Z]+[0-9]*)*
+NUMBERS		[0-9]+
+
+%option noyywrap
+
+%{
+	#include <string.h>
+	#include <ctype.h>
+	
+	int row_number = 0;
+	int column_number = 0;
+	int increase_column_posiiton(char* text)
+	{
+		column_number = column_number + (int)strlen(text);
+	}
+	char* uppercase_first_letter(char* text)
+	{
+		char lower = text[0];
+		if(lower >= 'a' && lower <= 'z'){
+			text[0] = ('A' + lower - 'a');
+		}
+		return text;
+	}
+%}
+
+%%
+
+{COMMENT}	{
+			int old_column = column_number;
+			increase_column_posiiton(yytext);
+			printf("Comment(%i, %i, %i); ", row_number, old_column, column_number - 1);
+                }
+
+{ML_COMMENT}	{
+			int old_column = column_number;
+			int old_row = row_number;
+			int i = 0;
+			for(i = 0; i < yyleng; i++)
+			{
+				if (yytext[i] == '\n')
+				{
+					row_number += 1;
+					column_number = 0;
+				}
+				else if (yytext[i] == '\r')
+					continue;
+				else
+					column_number += 1;
+			}
+			printf("Multiline_Comment(%i ,%i, %i, %i); ", old_row, old_column, row_number, column_number - 1);
+		}
+
+[()]		{
+			int old_column = column_number;
+                        increase_column_posiiton(yytext);
+			char* br_name;
+			if(strcmp(yytext, ")")==0) br_name="Right";
+                        if(strcmp(yytext, "(")==0) br_name="Left";
+                        printf("BR_%s(%i, %i, %i); ", br_name, row_number,old_column, column_number - 1);
+                }
+
+{KEYWORDS}	{       
+			int old_column = column_number;
+			increase_column_posiiton(yytext);
+			printf("KW_%s(%i, %i, %i); ", uppercase_first_letter(yytext), row_number,old_column, column_number - 1);
+		}
+
+
+{VARIABLE}	{
+                        int old_column = column_number;
+			increase_column_posiiton(yytext);
+			printf("Var(\"%s\", %i, %i, %i); ", yytext, row_number, old_column, column_number - 1);
+		}
+
+{OPERATIONS}    {
+                        int old_column = column_number;
+                        increase_column_posiiton(yytext);
+			char* op_name;
+			if(strcmp(yytext, "+")==0) op_name = "Plus";
+                        if(strcmp(yytext, "-")==0) op_name = "Minus";
+                        if(strcmp(yytext, "*")==0) op_name = "Multiplication";
+                        if(strcmp(yytext, "**")==0) op_name = "Power";
+                        if(strcmp(yytext, "/")==0) op_name = "Division";
+                        if(strcmp(yytext, "%")==0) op_name = "Mod";
+                        if(strcmp(yytext, "==")==0) op_name = "Equality";
+                        if(strcmp(yytext, "!=")==0) op_name = "NotEquality";
+			if(strcmp(yytext, ":=")==0) op_name = "Equation";
+                        if(strcmp(yytext, ">")==0) op_name = "Greater";
+                        if(strcmp(yytext, ">=")==0) op_name = "GreaterEqual";
+                        if(strcmp(yytext, "<")==0) op_name = "Lower";
+                        if(strcmp(yytext, "<=")==0) op_name = "LowerEqual";
+                        if(strcmp(yytext, "&&")==0) op_name = "And";
+                        if(strcmp(yytext, "||")==0) op_name = "Or";
+                        printf("Op(%s, %i, %i, %i); ", op_name, row_number, old_column, column_number - 1);
+                }
+
+{NUMBERS}	{
+                        int old_column = column_number;
+                        increase_column_posiiton(yytext);
+                        printf("Num(%s, %i, %i, %i); ", yytext, row_number, old_column, column_number - 1);
+                }
+
+;		{
+                        int old_column = column_number;
+			increase_column_posiiton(yytext);
+			printf("Colon(%i, %i, %i); ", row_number, old_column, column_number - 1);
+		}
+
+{NL}	 	{
+			row_number = row_number + 1;
+			column_number = 0;
+		}
+
+[ \t]+          {
+                        increase_column_posiiton(yytext);
+                }
+
+.		{			
+			int old_column = column_number;
+			increase_column_posiiton(yytext);
+			printf("ErrorUnknown(\"%s\", %i, %i, %i); ", yytext, row_number, old_column, column_number - 1);
+                }
+
+
+%%
+
+int main( int argc, char **argv )
+{
+	++argv, --argc;
+	if ( argc > 0 )
+		yyin = fopen( argv[0], "r" );
+	else
+		yyin = stdin;
+	yylex();
+	printf("\n");
+}
+
